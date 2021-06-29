@@ -86,10 +86,10 @@ def train(model: Model,
             break
 
 
-def validate(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
-    """Validates NN."""
-    print('Validate NN')
-    loader.validation_set()
+def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
+    """Trains or Validates NN - requires the loader to have loaded its set before calling."""
+    if len(loader.samples) == 0:
+        raise Exception('The number samples is 0 - has the loader been loaded?')
     preprocessor = Preprocessor(get_img_size(line_mode), line_mode=line_mode)
     num_char_err = 0
     num_char_total = 0
@@ -118,6 +118,19 @@ def validate(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[floa
     print(f'Character error rate: {char_error_rate * 100.0}%. Word accuracy: {word_accuracy * 100.0}%.')
     return char_error_rate, word_accuracy
 
+def validate(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
+    """Validates NN."""
+    print('Validate NN')
+    loader.validation_set()
+    return _verify(model, loader, line_mode)
+
+
+def test(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
+    """Trains NN."""
+    print('Test NN')
+    loader.test_set()
+    return _verify(model, loader, line_mode)
+
 
 def infer(model: Model, fn_img: Path) -> None:
     """Recognizes text in image provided by file path."""
@@ -137,7 +150,7 @@ def main():
     """Main function."""
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--mode', choices=['train', 'validate', 'infer'], default='infer')
+    parser.add_argument('--mode', choices=['train', 'validate', 'test', 'infer'], default='infer')
     parser.add_argument('--decoder', choices=['bestpath', 'beamsearch', 'wordbeamsearch'], default='bestpath')
     parser.add_argument('--batch_size', help='Batch size.', type=int, default=100)
     parser.add_argument('--data_dir', help='Directory containing IAM dataset.', type=Path, required=False)
@@ -155,7 +168,7 @@ def main():
     decoder_type = decoder_mapping[args.decoder]
 
     # train or validate on IAM dataset
-    if args.mode in ['train', 'validate']:
+    if args.mode in ['train', 'validate', 'test']:
         # load training data, create TF model
         loader = DataLoaderIAM(args.data_dir, args.batch_size, fast=args.fast)
         char_list = loader.char_list
@@ -177,6 +190,9 @@ def main():
         elif args.mode == 'validate':
             model = Model(char_list, decoder_type, must_restore=True)
             validate(model, loader, args.line_mode)
+        elif args.mode == 'test':
+            model = Model(char_list, decoder_type, must_restore=True)
+            test(model, loader, args.line_mode)
 
     # infer text on test image
     elif args.mode == 'infer':

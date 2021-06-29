@@ -21,7 +21,8 @@ class DataLoaderIAM:
     def __init__(self,
                  data_dir: Path,
                  batch_size: int,
-                 data_split: float = 0.95,
+                 data_split_1: float = 0.70,
+                 data_split_2: float = 0.85,
                  fast: bool = True) -> None:
         """Loader for dataset."""
 
@@ -65,14 +66,17 @@ class DataLoaderIAM:
             # put sample into list
             self.samples.append(Sample(gt_text, file_name))
 
-        # split into training and validation set: 95% - 5%
-        split_idx = int(data_split * len(self.samples))
-        self.train_samples = self.samples[:split_idx]
-        self.validation_samples = self.samples[split_idx:]
+        # split into training and validation and test set: 95% - 5% - 5%
+        split_idx_1 = int(data_split_1 * len(self.samples))
+        split_idx_2 = int(data_split_2 * len(self.samples))
+        self.train_samples = self.samples[:split_idx_1]
+        self.validation_samples = self.samples[split_idx_1:split_idx_2]
+        self.test_samples = self.samples[split_idx_2:]
 
         # put words into lists
         self.train_words = [x.gt_text for x in self.train_samples]
         self.validation_words = [x.gt_text for x in self.validation_samples]
+        self.test_words = [x.gt_text for x in self.test_samples]
 
         # start with train set
         self.train_set()
@@ -95,21 +99,38 @@ class DataLoaderIAM:
         self.samples = self.validation_samples
         self.curr_set = 'val'
 
+    def test_set(self) -> None:
+        """Switch to test set."""
+        self.data_augmentation = False
+        self.curr_idx = 0
+        self.samples = self.test_samples
+        self.curr_set = 'test'
+
     def get_iterator_info(self) -> Tuple[int, int]:
         """Current batch index and overall number of batches."""
         if self.curr_set == 'train':
-            num_batches = int(np.floor(len(self.samples) / self.batch_size))  # train set: only full-sized batches
-        else:
-            num_batches = int(np.ceil(len(self.samples) / self.batch_size))  # val set: allow last batch to be smaller
+            # train set: only full-sized batches
+            num_batches = int(np.floor(len(self.samples) / self.batch_size))
+        elif self.curr_set == 'val':
+            # val set: allow last batch to be smaller
+            num_batches = int(np.ceil(len(self.samples) / self.batch_size))
+        elif self.curr_set == 'test':
+            # test set: allow last batch to be smaller
+            num_batches = int(np.ceil(len(self.samples) / self.batch_size))
         curr_batch = self.curr_idx // self.batch_size + 1
         return curr_batch, num_batches
 
     def has_next(self) -> bool:
         """Is there a next element?"""
         if self.curr_set == 'train':
-            return self.curr_idx + self.batch_size <= len(self.samples)  # train set: only full-sized batches
-        else:
-            return self.curr_idx < len(self.samples)  # val set: allow last batch to be smaller
+            # train set: only full-sized batches
+            return self.curr_idx + self.batch_size <= len(self.samples)
+        elif self.curr_set == 'val':
+            # val set: allow last batch to be smaller
+            return self.curr_idx < len(self.samples)
+        elif self.curr_set == 'test':
+            # test set: allow last batch to be smaller
+            return self.curr_idx < len(self.samples)
 
     def _get_img(self, i: int) -> np.ndarray:
         if self.fast:
