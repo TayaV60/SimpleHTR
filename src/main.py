@@ -223,6 +223,8 @@ def main():
 
 
 if __name__ == '__main__':
-    print("STARTED " + datetime.datetime.now())
+    print("STARTED")
+    print(datetime.datetime.now())
     main()
-    print("ENDED " + datetime.datetime.now())
+    print("ENDED")
+    print(datetime.datetime.now())
