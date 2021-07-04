@@ -1,14 +1,19 @@
 import argparse
 from path import Path
+import pathlib
+import datetime
 import json
 import os
 import glob
+import cv2
 
 class ConverstionFilePaths:
     """Filenames and paths to data."""
-    annotation_files = 'ann'
-    image_files = 'img'
+    image_files = 'img' # same for RUS and IAM
+    input_annotation_files = 'ann'
+    output_annotation_files = 'gt'
     image_extension = 'jpg'
+    output_extenstion = 'png'
 
 def iterate_json_files(directory):
   image_data_list = []
@@ -19,8 +24,10 @@ def iterate_json_files(directory):
           data = json.load(jsonFile)
           filename = os.path.basename(filepath)
           file_without_extension = os.path.splitext(filename)[0]
+          file_dashed = file_without_extension.replace("_", "-")
           image_data = {
             "id": file_without_extension,
+            "destination_id": file_dashed,
             "width": data["size"]["width"],
             "height": data["size"]["height"],
             "description": data["description"]
@@ -32,9 +39,24 @@ def iterate_json_files(directory):
 def save_words_txt(image_data_list, destination_folder):
   with open(destination_folder + '/words.txt', 'w') as f:
     for item in image_data_list:
-        line = item["id"] + " ok 154 0 0 " + str(item["width"]) + " " + str(item["height"]) + " " + item["description"]
+        line = item["destination_id"] + " ok 154 0 0 " + str(item["width"]) + " " + str(item["height"]) + " " + item["description"]
         f.write("%s\n" % line)
 
+def convert_image(input_file, output_file):
+  img = cv2.imread(input_file)
+  cv2.imwrite(output_file, img)
+
+def convert_images(image_data_list, original_image_folder, base_destination_folder):
+  for item in image_data_list:
+    input_file = original_image_folder + "/" + item["id"] + "." + ConverstionFilePaths.image_extension
+    destination_id_split = item["destination_id"].split("-")
+    destination_folder = base_destination_folder + '/' + destination_id_split[0] + '/' + destination_id_split[1]
+    # create the folder if it does not exist
+    pathlib.Path(destination_folder).mkdir(parents=True, exist_ok=True)
+    output_file = destination_folder + "/" + item["destination_id"] + "." + ConverstionFilePaths.output_extenstion
+    # print ("Writing " + input_file + " -> " + output_file)
+    convert_image(input_file, output_file)
+    
 
 def main():
     """Main conversion function (converts Russian dataset to IAM format)."""
@@ -45,22 +67,30 @@ def main():
 
     args = parser.parse_args()
 
-    print(args.destination_folder)
-
+    # verify input folders
+    print("Reading from " + args.original_folder)
     assert args.original_folder.exists()
-    assert args.destination_folder.exists()
+    input_annotation_files_folder = args.original_folder + '/' + ConverstionFilePaths.input_annotation_files
+    input_image_files_folder = args.original_folder + '/' + ConverstionFilePaths.image_files
+    assert Path(input_annotation_files_folder).exists()
+    assert Path(input_image_files_folder).exists()
 
-    print(args.original_folder + '/' + ConverstionFilePaths.annotation_files)
+    print("Writing to " + args.destination_folder)
+    # create output folders
+    output_annotation_files_folder = args.destination_folder + '/' + ConverstionFilePaths.output_annotation_files
+    output_image_files_folder = args.destination_folder + '/' + ConverstionFilePaths.image_files
+    pathlib.Path(output_annotation_files_folder).mkdir(parents=True, exist_ok=True)
+    pathlib.Path(output_image_files_folder).mkdir(parents=True, exist_ok=True)
 
-    annotation_files_folder = Path(args.original_folder + '/' + ConverstionFilePaths.annotation_files)
-    image_files_folder =  Path(args.original_folder + '/' + ConverstionFilePaths.image_files)
+    image_data_list = iterate_json_files(input_annotation_files_folder)
+    save_words_txt(image_data_list, output_annotation_files_folder)
 
-    assert annotation_files_folder.exists()
-    assert image_files_folder.exists()
-
-    image_data_list = iterate_json_files(args.original_folder + '/' + ConverstionFilePaths.annotation_files)
-    save_words_txt(image_data_list, args.destination_folder)
+    convert_images(image_data_list, input_image_files_folder, output_image_files_folder)
 
 
 if __name__ == '__main__':
+    print("STARTED")
+    print(datetime.datetime.now())
     main()
+    print("ENDED")
+    print(datetime.datetime.now())
