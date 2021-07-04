@@ -2,6 +2,7 @@ import argparse
 from path import Path
 import json
 import os
+import datetime
 
 class ConverstionFilePaths:
     """Filenames and paths to data."""
@@ -44,4 +45,8 @@ def main():
     iterate_json_files(annotation_files_folder)
 
 if __name__ == '__main__':
+    print("STARTED")
+    print(datetime.datetime.now())
     main()
+    print("ENDED")
+    print(datetime.datetime.now())
