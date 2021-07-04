@@ -1,7 +1,7 @@
 import argparse
 import json
 from typing import Tuple, List
-
+import datetime
 import cv2
 import editdistance
 from path import Path
@@ -15,6 +15,7 @@ class FilePaths:
     """Filenames and paths to data."""
     fn_char_list = '../model/charList.txt'
     fn_summary = '../model/summary.json'
+    fn_lossvsepoch = '../model/lossvsepoch.json'
     fn_corpus = '../data/corpus.txt'
 
 
@@ -30,25 +31,35 @@ def get_img_size(line_mode: bool = False) -> Tuple[int, int]:
     return 128, get_img_height()
 
 
-def write_summary(char_error_rates: List[float], word_accuracies: List[float]) -> None:
+def write_summary(char_error_rates: List[float], word_error_rates: List[float]) -> None:
     """Writes training summary file for NN."""
     with open(FilePaths.fn_summary, 'w') as f:
-        json.dump({'charErrorRates': char_error_rates, 'wordAccuracies': word_accuracies}, f)
+        json.dump({'charErrorRates': char_error_rates, 'wordErrorRates': word_error_rates}, f)
+
+
+def write_lossvsepoch(epochs: List[int], average_losses: List[float]) -> None:
+    """Saves the change of average loss over epochs, done once at the end of training."""
+    with open(FilePaths.fn_lossvsepoch, 'w') as f:
+        json.dump({'Epochs': epochs, 'Average Loss': average_losses}, f)
 
 
 def train(model: Model,
           loader: DataLoaderIAM,
           line_mode: bool,
-          early_stopping: int = 25) -> None:
+          early_stopping: int = 15) -> None:
     """Trains NN."""
     epoch = 0  # number of training epochs since start
     summary_char_error_rates = []
-    summary_word_accuracies = []
+    summary_word_error_rates = []
     preprocessor = Preprocessor(get_img_size(line_mode), data_augmentation=True, line_mode=line_mode)
     best_char_error_rate = float('inf')  # best valdiation character error rate
     no_improvement_since = 0  # number of epochs no improvement of character error rate occurred
+    # keep arrays of loss and epochs (for analysis)
+    epochs = []
+    average_losses = []
     # stop training after this number of epochs without improvement
     while True:
+        losses = [] # the losses for each epoch
         epoch += 1
         print('Epoch:', epoch)
 
@@ -60,15 +71,20 @@ def train(model: Model,
             batch = loader.get_next()
             batch = preprocessor.process_batch(batch)
             loss = model.train_batch(batch)
+            losses.append(loss)
             print(f'Epoch: {epoch} Batch: {iter_info[0]}/{iter_info[1]} Loss: {loss}')
+        
+        average_loss = sum(losses) / len(losses)
+        average_losses.append(average_loss)
+        epochs.append(epoch)
 
         # validate
-        char_error_rate, word_accuracy = validate(model, loader, line_mode)
+        char_error_rate, word_error_rate = validate(model, loader, line_mode)
 
         # write summary
         summary_char_error_rates.append(char_error_rate)
-        summary_word_accuracies.append(word_accuracy)
-        write_summary(summary_char_error_rates, summary_word_accuracies)
+        summary_word_error_rates.append(word_error_rate)
+        write_summary(summary_char_error_rates, summary_word_error_rates)
 
         # if best validation accuracy so far, save model parameters
         if char_error_rate < best_char_error_rate:
@@ -76,6 +92,11 @@ def train(model: Model,
             best_char_error_rate = char_error_rate
             no_improvement_since = 0
             model.save()
+            # this currently overwrites for each epoch, which is wasteful but might allow us to
+            # track progress if the program fails to complete
+            # TODO under the while loop maybe
+            write_lossvsepoch(epochs, average_losses)
+
         else:
             print(f'Character error rate not improved, best so far: {char_error_rate * 100.0}%')
             no_improvement_since += 1
@@ -93,7 +114,7 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float
     preprocessor = Preprocessor(get_img_size(line_mode), line_mode=line_mode)
     num_char_err = 0
     num_char_total = 0
-    num_word_ok = 0
+    num_word_err = 0
     num_word_total = 0
     while loader.has_next():
         iter_info = loader.get_iterator_info()
@@ -104,7 +125,7 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float
 
         print('Ground truth -> Recognized')
         for i in range(len(recognized)):
-            num_word_ok += 1 if batch.gt_texts[i] == recognized[i] else 0
+            num_word_err += 1 if batch.gt_texts[i] != recognized[i] else 0 # also TBD
             num_word_total += 1
             dist = editdistance.eval(recognized[i], batch.gt_texts[i])
             num_char_err += dist
@@ -114,9 +135,10 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float
 
     # print validation result
     char_error_rate = num_char_err / num_char_total
-    word_accuracy = num_word_ok / num_word_total
-    print(f'Character error rate: {char_error_rate * 100.0}%. Word accuracy: {word_accuracy * 100.0}%.')
-    return char_error_rate, word_accuracy
+    word_error_rate = num_word_err / num_word_total # we will discuss this when lil G is asleep
+    print(f'Character error rate: {char_error_rate * 100.0}%. Word error rate: {word_error_rate * 100.0}%.')
+    return char_error_rate, word_error_rate
+
 
 def validate(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
     """Validates NN."""
@@ -201,4 +223,6 @@ def main():
 
 
 if __name__ == '__main__':
+    print("STARTED " + datetime.datetime.now())
     main()
+    print("ENDED " + datetime.datetime.now())
