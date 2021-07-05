@@ -39,7 +39,7 @@ def iterate_json_files(directory):
 def save_words_txt(image_data_list, destination_folder):
   with open(destination_folder + '/words.txt', 'w') as f:
     for item in image_data_list:
-        line = item["destination_id"] + " ok 154 0 0 " + str(item["width"]) + " " + str(item["height"]) + " " + item["description"]
+        line = item["destination_id"] + " ok 154 0 0 " + str(item["width"]) + " " + str(item["height"]) + " AT " + item["description"]
         f.write("%s\n" % line)
 
 def convert_image(input_file, output_file):
@@ -64,6 +64,7 @@ def main():
 
     parser.add_argument('--original_folder', help='Folder to convert.', type=Path, default='/Users/taisiyavelarde/Desktop/DatasetRus/Words/20200923_Dataset_Words_Public')
     parser.add_argument('--destination_folder', help='Folder to store converted files.', type=Path, default='/Users/taisiyavelarde/Documents/tmp')
+    parser.add_argument('--words_only', help='Do not regenerate images.', action='store_true')
 
     args = parser.parse_args()
 
@@ -84,8 +85,8 @@ def main():
 
     image_data_list = iterate_json_files(input_annotation_files_folder)
     save_words_txt(image_data_list, output_annotation_files_folder)
-
-    convert_images(image_data_list, input_image_files_folder, output_image_files_folder)
+    if args.words_only != True:
+      convert_images(image_data_list, input_image_files_folder, output_image_files_folder)
 
 
 if __name__ == '__main__':
