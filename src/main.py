@@ -85,6 +85,10 @@ def train(model: Model,
         summary_char_error_rates.append(char_error_rate)
         summary_word_error_rates.append(word_error_rate)
         write_summary(summary_char_error_rates, summary_word_error_rates)
+        # this currently overwrites for each epoch, which is wasteful but might allow us to
+        # track progress if the program fails to complete
+        # TODO under the while loop maybe
+        write_lossvsepoch(epochs, average_losses)
 
         # if best validation accuracy so far, save model parameters
         if char_error_rate < best_char_error_rate:
@@ -92,10 +96,6 @@ def train(model: Model,
             best_char_error_rate = char_error_rate
             no_improvement_since = 0
             model.save()
-            # this currently overwrites for each epoch, which is wasteful but might allow us to
-            # track progress if the program fails to complete
-            # TODO under the while loop maybe
-            write_lossvsepoch(epochs, average_losses)
 
         else:
             print(f'Character error rate not improved, best so far: {char_error_rate * 100.0}%')
