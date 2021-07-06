@@ -50,7 +50,9 @@ def convert_images(image_data_list, original_image_folder, base_destination_fold
   for item in image_data_list:
     input_file = original_image_folder + "/" + item["id"] + "." + ConverstionFilePaths.image_extension
     destination_id_split = item["destination_id"].split("-")
-    destination_folder = base_destination_folder + '/' + destination_id_split[0] + '/' + destination_id_split[1]
+    file_name_subdir = destination_id_split[0]
+    file_name_subdir2 = f'{destination_id_split[0]}-{destination_id_split[1]}'
+    destination_folder = base_destination_folder + '/' + file_name_subdir + '/' + file_name_subdir2
     # create the folder if it does not exist
     pathlib.Path(destination_folder).mkdir(parents=True, exist_ok=True)
     output_file = destination_folder + "/" + item["destination_id"] + "." + ConverstionFilePaths.output_extenstion
