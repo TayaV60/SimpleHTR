@@ -1,4 +1,5 @@
 import argparse
+import random
 from path import Path
 import pathlib
 import datetime
@@ -6,6 +7,7 @@ import json
 import os
 import glob
 import cv2
+import numpy
 
 class ConverstionFilePaths:
     """Filenames and paths to data."""
@@ -15,32 +17,51 @@ class ConverstionFilePaths:
     image_extension = 'jpg'
     output_extenstion = 'png'
 
-def iterate_json_files(directory):
-  image_data_list = []
+def get_randomised_json_file_list(directory):
+  filepaths = []
   for filepath in sorted(glob.glob(directory + '/*.json')):
     if filepath.endswith(".json"): 
         filepath = os.path.join(filepath)
+        filepaths.append(filepath)
+  random.shuffle(filepaths)
+  return filepaths
+
+def iterate_json_files(directory):
+  filepaths = get_randomised_json_file_list(directory)
+  image_data_list = []
+  bucket_size = 50
+  buckets = numpy.array_split(filepaths, bucket_size)
+  for x, bucket_files in enumerate(buckets):
+    sub_buckets = numpy.array_split(bucket_files, bucket_size)
+    for y, sub_bucket_files in enumerate(sub_buckets):
+      for z, filepath in enumerate(sub_bucket_files):
         with open(filepath) as jsonFile:
-          data = json.load(jsonFile)
-          filename = os.path.basename(filepath)
-          file_without_extension = os.path.splitext(filename)[0]
-          file_dashed = file_without_extension.replace("_", "-")
-          image_data = {
-            "id": file_without_extension,
-            "destination_id": file_dashed,
-            "width": data["size"]["width"],
-            "height": data["size"]["height"],
-            "description": data["description"]
-          }
-          image_data_list.append(image_data)
-          # print(file_without_extension + " ok 154 0 0 " + str(data["size"]["width"]) + " " + str(data["size"]["height"])  + " " + data["description"])
+              data = json.load(jsonFile)
+              filename = os.path.basename(filepath)
+              file_without_extension = os.path.splitext(filename)[0]
+              file_dashed = str(x) + "-" + str(y) + '-' + str(z)
+              image_data = {
+                "id": file_without_extension,
+                "destination_id": file_dashed,
+                "width": data["size"]["width"],
+                "height": data["size"]["height"],
+                "description": data["description"]
+              }
+              image_data_list.append(image_data)
+              # print(file_without_extension + " ok 154 0 0 " + str(data["size"]["width"]) + " " + str(data["size"]["height"])  + " " + data["description"])
   return image_data_list
+
 
 def save_words_txt(image_data_list, destination_folder):
   with open(destination_folder + '/words.txt', 'w') as f:
     for item in image_data_list:
         line = item["destination_id"] + " ok 154 0 0 " + str(item["width"]) + " " + str(item["height"]) + " AT " + item["description"]
         f.write("%s\n" % line)
+
+def save_json_file_list(image_data_list, destination_folder) -> None:
+    """Save the json file list for mapping reference to the original files."""
+    with open(destination_folder + '/' + 'word_list.json', 'w') as f:
+        json.dump({'date': str(datetime.datetime.now()), 'image_data': image_data_list}, f)
 
 def convert_image(input_file, output_file):
   img = cv2.imread(input_file)
@@ -87,6 +108,7 @@ def main():
 
     image_data_list = iterate_json_files(input_annotation_files_folder)
     save_words_txt(image_data_list, output_annotation_files_folder)
+    save_json_file_list(image_data_list, args.destination_folder)
     if args.words_only != True:
       convert_images(image_data_list, input_image_files_folder, output_image_files_folder)
 
