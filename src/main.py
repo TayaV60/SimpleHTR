@@ -179,7 +179,7 @@ def main():
     parser.add_argument('--fast', help='Load samples from LMDB.', action='store_true')
     parser.add_argument('--line_mode', help='Train to read text lines instead of single words.', action='store_true')
     parser.add_argument('--img_file', help='Image used for inference.', type=Path, default='../data/word.png')
-    parser.add_argument('--early_stopping', help='Early stopping epochs.', type=int, default=25)
+    parser.add_argument('--early_stopping', help='Early stopping epochs.', type=int, default=15)
     parser.add_argument('--dump', help='Dump output of NN to CSV file(s).', action='store_true')
     args = parser.parse_args()
 
