@@ -5,6 +5,7 @@ import datetime
 import cv2
 import editdistance
 from path import Path
+from autocorrect import Speller
 
 from dataloader_iam import DataLoaderIAM, Batch
 from model import Model, DecoderType
@@ -31,10 +32,10 @@ def get_img_size(line_mode: bool = False) -> Tuple[int, int]:
     return 128, get_img_height()
 
 
-def write_summary(char_error_rates: List[float], word_error_rates: List[float]) -> None:
+def write_summary(char_error_rates: List[float], word_error_rates: List[float], spell_checker_improvement_rate: List[float]) -> None:
     """Writes training summary file for NN."""
     with open(FilePaths.fn_summary, 'w') as f:
-        json.dump({'charErrorRates': char_error_rates, 'wordErrorRates': word_error_rates}, f)
+        json.dump({'charErrorRates': char_error_rates, 'wordErrorRates': word_error_rates, "spellCheckerImprovementRates": spell_checker_improvement_rate}, f)
 
 
 def write_lossvsepoch(epochs: List[int], average_losses: List[float]) -> None:
@@ -46,11 +47,13 @@ def write_lossvsepoch(epochs: List[int], average_losses: List[float]) -> None:
 def train(model: Model,
           loader: DataLoaderIAM,
           line_mode: bool,
+          spell,
           early_stopping: int = 15) -> None:
     """Trains NN."""
     epoch = 0  # number of training epochs since start
     summary_char_error_rates = []
     summary_word_error_rates = []
+    spell_checker_improvement_rates = []
     preprocessor = Preprocessor(get_img_size(line_mode), data_augmentation=True, line_mode=line_mode)
     best_char_error_rate = float('inf')  # best valdiation character error rate
     no_improvement_since = 0  # number of epochs no improvement of character error rate occurred
@@ -79,12 +82,13 @@ def train(model: Model,
         epochs.append(epoch)
 
         # validate
-        char_error_rate, word_error_rate = validate(model, loader, line_mode)
+        char_error_rate, word_error_rate, spell_checker_improvement_rate = validate(model, loader, line_mode, spell)
 
         # write summary
         summary_char_error_rates.append(char_error_rate)
         summary_word_error_rates.append(word_error_rate)
-        write_summary(summary_char_error_rates, summary_word_error_rates)
+        spell_checker_improvement_rates.append(spell_checker_improvement_rate)
+        write_summary(summary_char_error_rates, summary_word_error_rates, spell_checker_improvement_rate)
         # this currently overwrites for each epoch, which is wasteful but might allow us to
         # track progress if the program fails to complete
         # TODO under the while loop maybe
@@ -107,7 +111,7 @@ def train(model: Model,
             break
 
 
-def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
+def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tuple[float, float]:
     """Trains or Validates NN - requires the loader to have loaded its set before calling."""
     if len(loader.samples) == 0:
         raise Exception('The number samples is 0 - has the loader been loaded?')
@@ -116,6 +120,8 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float
     num_char_total = 0
     num_word_err = 0
     num_word_total = 0
+    # a count of errors that could potentially be autocorrected correctly
+    num_spell_checker_corrected = 0
     while loader.has_next():
         iter_info = loader.get_iterator_info()
         print(f'Batch: {iter_info[0]} / {iter_info[1]}')
@@ -128,6 +134,10 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float
             num_word_err += 1 if batch.gt_texts[i] != recognized[i] else 0 # also TBD
             num_word_total += 1
             dist = editdistance.eval(recognized[i], batch.gt_texts[i])
+            if dist > 0:
+                spelt = spell(recognized[i])
+                if spelt == batch.gt_texts[i]:
+                    num_spell_checker_corrected += 1
             num_char_err += dist
             num_char_total += len(batch.gt_texts[i])
             print('[OK]' if dist == 0 else '[ERR:%d]' % dist, '"' + batch.gt_texts[i] + '"', '->',
@@ -135,26 +145,27 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float
 
     # print validation result
     char_error_rate = num_char_err / num_char_total
-    word_error_rate = num_word_err / num_word_total # we will discuss this when lil G is asleep
-    print(f'Character error rate: {char_error_rate * 100.0}%. Word error rate: {word_error_rate * 100.0}%.')
-    return char_error_rate, word_error_rate
+    word_error_rate = num_word_err / num_word_total
+    spell_checker_improvement_rate = num_spell_checker_corrected / num_word_err
+    print(f'Character error rate: {char_error_rate * 100.0}%. Word error rate: {word_error_rate * 100.0}%, of which improved by spell checker: {spell_checker_improvement_rate * 100.0}%.')
+    return char_error_rate, word_error_rate, spell_checker_improvement_rate
 
 
-def validate(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
+def validate(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tuple[float, float]:
     """Validates NN."""
     print('Validate NN')
     loader.validation_set()
-    return _verify(model, loader, line_mode)
+    return _verify(model, loader, line_mode, spell)
 
 
-def test(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
+def test(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tuple[float, float]:
     """Trains NN."""
     print('Test NN')
     loader.test_set()
-    return _verify(model, loader, line_mode)
+    return _verify(model, loader, line_mode, spell)
 
 
-def infer(model: Model, fn_img: Path) -> None:
+def infer(model: Model, fn_img: Path, spell) -> None:
     """Recognizes text in image provided by file path."""
     img = cv2.imread(fn_img, cv2.IMREAD_GRAYSCALE)
     assert img is not None
@@ -167,6 +178,8 @@ def infer(model: Model, fn_img: Path) -> None:
     print(f'Recognized: "{recognized[0]}"')
     print(f'Probability: {probability[0]}')
 
+    spelt = spell(recognized[0])
+    print(f'Speller recognises: "{spelt}"')
 
 def main():
     """Main function."""
@@ -181,6 +194,7 @@ def main():
     parser.add_argument('--img_file', help='Image used for inference.', type=Path, default='../data/word.png')
     parser.add_argument('--early_stopping', help='Early stopping epochs.', type=int, default=15)
     parser.add_argument('--dump', help='Dump output of NN to CSV file(s).', action='store_true')
+    parser.add_argument('--spell_check_language', help='Either "en" or "ru"', default='en')
     args = parser.parse_args()
 
     # set chosen CTC decoder
@@ -188,6 +202,8 @@ def main():
                        'beamsearch': DecoderType.BeamSearch,
                        'wordbeamsearch': DecoderType.WordBeamSearch}
     decoder_type = decoder_mapping[args.decoder]
+
+    spell = Speller(args.spell_check_language)
 
     # train or validate on IAM dataset
     if args.mode in ['train', 'validate', 'test']:
@@ -208,18 +224,18 @@ def main():
         # execute training or validation
         if args.mode == 'train':
             model = Model(char_list, decoder_type)
-            train(model, loader, line_mode=args.line_mode, early_stopping=args.early_stopping)
+            train(model, loader, line_mode=args.line_mode, spell=spell, early_stopping=args.early_stopping)
         elif args.mode == 'validate':
             model = Model(char_list, decoder_type, must_restore=True)
-            validate(model, loader, args.line_mode)
+            validate(model, loader, args.line_mode, spell)
         elif args.mode == 'test':
             model = Model(char_list, decoder_type, must_restore=True)
-            test(model, loader, args.line_mode)
+            test(model, loader, args.line_mode, spell)
 
     # infer text on test image
     elif args.mode == 'infer':
         model = Model(list(open(FilePaths.fn_char_list).read()), decoder_type, must_restore=True, dump=args.dump)
-        infer(model, args.img_file)
+        infer(model, args.img_file, spell)
 
 
 if __name__ == '__main__':
