@@ -32,13 +32,14 @@ def get_img_size(line_mode: bool = False) -> Tuple[int, int]:
     return 128, get_img_height()
 
 
-def write_summary(char_error_rates: List[float], word_error_rates: List[float], with_spell_checker_error_rates: List[float], spell_checker_improvement_rates: List[float], spell_checker_worsening_rates: List[float]) -> None:
+def write_summary(char_error_rates: List[float], word_error_rates: List[float], char_error_rate_with_spell_checks: List[float], word_error_rate_with_spell_checks: List[float], spell_checker_improvement_rates: List[float], spell_checker_worsening_rates: List[float]) -> None:
     """Writes training summary file for NN."""
     with open(FilePaths.fn_summary, 'w') as f:
         json.dump({
             'charErrorRates': char_error_rates, 
             'wordErrorRates': word_error_rates, 
-            'withSpellCheckerErrorRates': with_spell_checker_error_rates, 
+            'charErrorRateWithSpellChecks': char_error_rate_with_spell_checks, 
+            'wordErrorRateWithSpellChecks': word_error_rate_with_spell_checks,
             'spellCheckerImprovementRates': spell_checker_improvement_rates,
             'spellCheckerWorseningRates': spell_checker_worsening_rates
         }, f)
@@ -59,7 +60,8 @@ def train(model: Model,
     epoch = 0  # number of training epochs since start
     summary_char_error_rates = []
     summary_word_error_rates = []
-    with_spell_checker_error_rates = []
+    char_error_rate_with_spell_checks = []
+    word_error_rate_with_spell_checks = []
     spell_checker_improvement_rates = []
     spell_checker_worsening_rates = []
     preprocessor = Preprocessor(get_img_size(line_mode), data_augmentation=True, line_mode=line_mode)
@@ -90,15 +92,16 @@ def train(model: Model,
         epochs.append(epoch)
 
         # validate
-        char_error_rate, word_error_rate, with_spell_checker_error_rate, spell_checker_improvement_rate, spell_checker_worsening_rate = validate(model, loader, line_mode, spell)
+        char_error_rate, word_error_rate, char_error_rate_with_spell_check, word_error_rate_with_spell_check, spell_checker_improvement_rate, spell_checker_worsening_rate = validate(model, loader, line_mode, spell)
 
         # write summary
         summary_char_error_rates.append(char_error_rate)
         summary_word_error_rates.append(word_error_rate)
-        with_spell_checker_error_rates.append(with_spell_checker_error_rate)
+        char_error_rate_with_spell_checks.append(char_error_rate_with_spell_check)
+        word_error_rate_with_spell_checks.append(word_error_rate_with_spell_check)
         spell_checker_improvement_rates.append(spell_checker_improvement_rate)
         spell_checker_worsening_rates.append(spell_checker_worsening_rate)
-        write_summary(summary_char_error_rates, summary_word_error_rates, with_spell_checker_error_rates, spell_checker_improvement_rates, spell_checker_worsening_rates)
+        write_summary(summary_char_error_rates, summary_word_error_rates, char_error_rate_with_spell_checks, word_error_rate_with_spell_checks, spell_checker_improvement_rates, spell_checker_worsening_rates)
         # this currently overwrites for each epoch, which is wasteful but might allow us to
         # track progress if the program fails to complete
         # TODO under the while loop maybe
@@ -127,9 +130,10 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tupl
         raise Exception('The number samples is 0 - has the loader been loaded?')
     preprocessor = Preprocessor(get_img_size(line_mode), line_mode=line_mode)
     num_char_err = 0
-    num_char_err_with_spell_check = 0
+    char_error_with_spell_check = 0
     num_char_total = 0
     num_word_err = 0
+    num_word_err_with_spell_check = 0
     num_word_total = 0
     # a count of errors that could potentially be autocorrected correctly
     num_spell_checker_improved_result = 0
@@ -143,14 +147,15 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tupl
 
         print('Ground truth -> Recognized')
         for i in range(len(recognized)):
-            num_word_err += 1 if batch.gt_texts[i] != recognized[i] else 0 # also TBD
+            num_word_err += 1 if batch.gt_texts[i] != recognized[i] else 0
             num_word_total += 1
             dist = editdistance.eval(recognized[i], batch.gt_texts[i])
             num_char_err += dist
 
             spelt = spell(recognized[i])
             dist2 = editdistance.eval(spelt, batch.gt_texts[i])
-            num_char_err_with_spell_check += dist2
+            char_error_with_spell_check += dist2
+            num_word_err_with_spell_check += 1 if batch.gt_texts[i] != spelt else 0
 
             # if the recognised is the same as the ground truth, but the spell checker is not
             if dist2 > 0 and batch.gt_texts[i] == recognized[i]:
@@ -167,11 +172,12 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tupl
     # print validation result
     char_error_rate = num_char_err / num_char_total
     word_error_rate = num_word_err / num_word_total
-    with_spell_checker_error_rate = num_char_err_with_spell_check / num_word_total
+    char_error_rate_with_spell_check = char_error_with_spell_check / num_char_total
+    word_error_rate_with_spell_check = num_word_err_with_spell_check / num_word_total
     spell_checker_improvement_rate = num_spell_checker_improved_result / num_word_total
     spell_checker_worsening_rate = num_spell_checker_worsened_result / num_word_total
-    print(f'Character error rate: {char_error_rate * 100.0}%. Word error rate: {word_error_rate * 100.0}%. Spell checker improvement rate: {spell_checker_improvement_rate * 100.0}%. Spell checker worsening rate: {spell_checker_worsening_rate * 100.0}%. With spell checker error rate: {with_spell_checker_error_rate * 100.0}%.')
-    return char_error_rate, word_error_rate, with_spell_checker_error_rate, spell_checker_improvement_rate, spell_checker_worsening_rate
+    print(f'Character error rate: {char_error_rate * 100.0}%. Word error rate: {word_error_rate * 100.0}%. Char error rate with spell check: {char_error_rate_with_spell_check * 100.0}%. Word error rate with spell check: {word_error_rate_with_spell_check * 100.0}%. Spell checker improvement rate: {spell_checker_improvement_rate * 100.0}%. Spell checker worsening rate: {spell_checker_worsening_rate * 100.0}%.')
+    return char_error_rate, word_error_rate, char_error_rate_with_spell_check, word_error_rate_with_spell_check, spell_checker_improvement_rate, spell_checker_worsening_rate
 
 
 def validate(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tuple[float, float]:
