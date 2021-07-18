@@ -214,8 +214,7 @@ def main():
     decoder_type = decoder_mapping[args.decoder]
 
     # currently doing nothing, but not entirely removed as we may still need it later
-    if args.spell:
-        spell = Speller(args.spell_check_language)
+    spell = Speller(args.spell_check_language)
 
     # train or validate on IAM dataset
     if args.mode in ['train', 'validate', 'test']:
