@@ -32,23 +32,23 @@ def get_img_size(line_mode: bool = False) -> Tuple[int, int]:
     return 128, get_img_height()
 
 
-def write_summary(char_error_rates: List[float], word_error_rates: List[float], char_error_rate_with_spell_checks: List[float], word_error_rate_with_spell_checks: List[float], spell_checker_improvement_rates: List[float], spell_checker_worsening_rates: List[float]) -> None:
+def write_summary(char_error_rates: List[float], word_error_rates: List[float]) -> None:
     """Writes training summary file for NN."""
     with open(FilePaths.fn_summary, 'w') as f:
         json.dump({
             'charErrorRates': char_error_rates, 
-            'wordErrorRates': word_error_rates, 
-            'charErrorRateWithSpellChecks': char_error_rate_with_spell_checks, 
-            'wordErrorRateWithSpellChecks': word_error_rate_with_spell_checks,
-            'spellCheckerImprovementRates': spell_checker_improvement_rates,
-            'spellCheckerWorseningRates': spell_checker_worsening_rates
+            'wordErrorRates': word_error_rates,
         }, f)
 
 
-def write_lossvsepoch(epochs: List[int], average_losses: List[float]) -> None:
+def write_lossvsepoch(epochs: List[int], average_training_losses: List[float], average_validation_losses: List[float]) -> None:
     """Saves the change of average loss over epochs, done once at the end of training."""
     with open(FilePaths.fn_lossvsepoch, 'w') as f:
-        json.dump({'Epochs': epochs, 'Average Loss': average_losses}, f)
+        json.dump({
+            'Epochs': epochs,
+            'Average Training Losses': average_training_losses,
+            'Average Validation Losses': average_validation_losses,
+        }, f)
 
 
 def train(model: Model,
@@ -60,16 +60,13 @@ def train(model: Model,
     epoch = 0  # number of training epochs since start
     summary_char_error_rates = []
     summary_word_error_rates = []
-    char_error_rate_with_spell_checks = []
-    word_error_rate_with_spell_checks = []
-    spell_checker_improvement_rates = []
-    spell_checker_worsening_rates = []
     preprocessor = Preprocessor(get_img_size(line_mode), data_augmentation=True, line_mode=line_mode)
     best_char_error_rate = float('inf')  # best valdiation character error rate
     no_improvement_since = 0  # number of epochs no improvement of character error rate occurred
     # keep arrays of loss and epochs (for analysis)
     epochs = []
-    average_losses = []
+    average_training_losses = []
+    average_validation_losses = []
     # stop training after this number of epochs without improvement
     while True:
         losses = [] # the losses for each epoch
@@ -88,24 +85,19 @@ def train(model: Model,
             print(f'Epoch: {epoch} Batch: {iter_info[0]}/{iter_info[1]} Loss: {loss}')
         
         average_loss = sum(losses) / len(losses)
-        average_losses.append(average_loss)
+        average_training_losses.append(average_loss)
         epochs.append(epoch)
 
         # validate
-        char_error_rate, word_error_rate, char_error_rate_with_spell_check, word_error_rate_with_spell_check, spell_checker_improvement_rate, spell_checker_worsening_rate = validate(model, loader, line_mode, spell)
+        char_error_rate, word_error_rate, average_validation_loss = validate(model, loader, line_mode, spell)
+
+        average_validation_losses.append(average_validation_loss)
 
         # write summary
         summary_char_error_rates.append(char_error_rate)
         summary_word_error_rates.append(word_error_rate)
-        char_error_rate_with_spell_checks.append(char_error_rate_with_spell_check)
-        word_error_rate_with_spell_checks.append(word_error_rate_with_spell_check)
-        spell_checker_improvement_rates.append(spell_checker_improvement_rate)
-        spell_checker_worsening_rates.append(spell_checker_worsening_rate)
-        write_summary(summary_char_error_rates, summary_word_error_rates, char_error_rate_with_spell_checks, word_error_rate_with_spell_checks, spell_checker_improvement_rates, spell_checker_worsening_rates)
-        # this currently overwrites for each epoch, which is wasteful but might allow us to
-        # track progress if the program fails to complete
-        # TODO under the while loop maybe
-        write_lossvsepoch(epochs, average_losses)
+        write_summary(summary_char_error_rates, summary_word_error_rates)
+        write_lossvsepoch(epochs, average_training_losses, average_validation_losses)
 
         # if best validation accuracy so far, save model parameters
         if char_error_rate < best_char_error_rate:
@@ -124,26 +116,24 @@ def train(model: Model,
             break
 
 
-def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tuple[float, float]:
+def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
     """Trains or Validates NN - requires the loader to have loaded its set before calling."""
     if len(loader.samples) == 0:
         raise Exception('The number samples is 0 - has the loader been loaded?')
     preprocessor = Preprocessor(get_img_size(line_mode), line_mode=line_mode)
     num_char_err = 0
-    char_error_with_spell_check = 0
     num_char_total = 0
     num_word_err = 0
-    num_word_err_with_spell_check = 0
     num_word_total = 0
     # a count of errors that could potentially be autocorrected correctly
-    num_spell_checker_improved_result = 0
-    num_spell_checker_worsened_result = 0
+    validation_losses = []
     while loader.has_next():
         iter_info = loader.get_iterator_info()
         print(f'Batch: {iter_info[0]} / {iter_info[1]}')
         batch = loader.get_next()
         batch = preprocessor.process_batch(batch)
-        recognized, _ = model.infer_batch(batch)
+        recognized, _, batch_validation_losses = model.infer_batch(batch, True)
+        validation_losses.append(batch_validation_losses)
 
         print('Ground truth -> Recognized')
         for i in range(len(recognized)):
@@ -151,33 +141,22 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tupl
             num_word_total += 1
             dist = editdistance.eval(recognized[i], batch.gt_texts[i])
             num_char_err += dist
-
-            spelt = spell(recognized[i])
-            dist2 = editdistance.eval(spelt, batch.gt_texts[i])
-            char_error_with_spell_check += dist2
-            num_word_err_with_spell_check += 1 if batch.gt_texts[i] != spelt else 0
-
-            # if the recognised is the same as the ground truth, but the spell checker is not
-            if dist2 > 0 and batch.gt_texts[i] == recognized[i]:
-                num_spell_checker_worsened_result += 1
-
-            # if the recognised is not the same as the ground truth, but the spell checker is
-            if dist > 0 and spelt == batch.gt_texts[i]:
-                num_spell_checker_improved_result += 1
             
             num_char_total += len(batch.gt_texts[i])
             print('[OK]' if dist == 0 else '[ERR:%d]' % dist, '"' + batch.gt_texts[i] + '"', '->',
                   '"' + recognized[i] + '"')
 
+    total_validation_losses = []
+    for batch_validation_losses in validation_losses:
+        for loss in batch_validation_losses:
+            total_validation_losses.append(loss)
+    average_validation_loss = sum(total_validation_losses) / len(total_validation_losses)
+
     # print validation result
     char_error_rate = num_char_err / num_char_total
     word_error_rate = num_word_err / num_word_total
-    char_error_rate_with_spell_check = char_error_with_spell_check / num_char_total
-    word_error_rate_with_spell_check = num_word_err_with_spell_check / num_word_total
-    spell_checker_improvement_rate = num_spell_checker_improved_result / num_word_total
-    spell_checker_worsening_rate = num_spell_checker_worsened_result / num_word_total
-    print(f'Character error rate: {char_error_rate * 100.0}%. Word error rate: {word_error_rate * 100.0}%. Char error rate with spell check: {char_error_rate_with_spell_check * 100.0}%. Word error rate with spell check: {word_error_rate_with_spell_check * 100.0}%. Spell checker improvement rate: {spell_checker_improvement_rate * 100.0}%. Spell checker worsening rate: {spell_checker_worsening_rate * 100.0}%.')
-    return char_error_rate, word_error_rate, char_error_rate_with_spell_check, word_error_rate_with_spell_check, spell_checker_improvement_rate, spell_checker_worsening_rate
+    print(f'Character error rate: {char_error_rate * 100.0}%. Word error rate: {word_error_rate * 100.0}%. Average validation loss: {average_validation_loss}.')
+    return char_error_rate, word_error_rate, average_validation_loss
 
 
 def validate(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tuple[float, float]:
@@ -203,9 +182,10 @@ def infer(model: Model, fn_img: Path, spell) -> None:
     img = preprocessor.process_img(img)
 
     batch = Batch([img], None, 1)
-    recognized, probability = model.infer_batch(batch, True)
+    recognized, probability, loss_values = model.infer_batch(batch, True)
     print(f'Recognized: "{recognized[0]}"')
     print(f'Probability: {probability[0]}')
+    print(f'Loss Value: {loss_values[0]}')
 
     spelt = spell(recognized[0])
     print(f'Speller recognises: "{spelt}"')
@@ -223,6 +203,7 @@ def main():
     parser.add_argument('--img_file', help='Image used for inference.', type=Path, default='../data/word.png')
     parser.add_argument('--early_stopping', help='Early stopping epochs.', type=int, default=15)
     parser.add_argument('--dump', help='Dump output of NN to CSV file(s).', action='store_true')
+    parser.add_argument('--spell', help='Run a spell checker.', action='store_true')
     parser.add_argument('--spell_check_language', help='Either "en" or "ru"', default='en')
     args = parser.parse_args()
 
@@ -232,7 +213,9 @@ def main():
                        'wordbeamsearch': DecoderType.WordBeamSearch}
     decoder_type = decoder_mapping[args.decoder]
 
-    spell = Speller(args.spell_check_language)
+    # currently doing nothing, but not entirely removed as we may still need it later
+    if args.spell:
+        spell = Speller(args.spell_check_language)
 
     # train or validate on IAM dataset
     if args.mode in ['train', 'validate', 'test']:

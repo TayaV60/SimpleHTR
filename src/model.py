@@ -298,7 +298,7 @@ class Model:
         if self.dump:
             self.dump_nn_output(eval_res[1])
 
-        return texts, probs
+        return texts, probs, loss_vals
 
     def save(self) -> None:
         """Save model to file."""
