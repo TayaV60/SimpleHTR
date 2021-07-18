@@ -116,7 +116,7 @@ def train(model: Model,
             break
 
 
-def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
+def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool, spell) -> Tuple[float, float]:
     """Trains or Validates NN - requires the loader to have loaded its set before calling."""
     if len(loader.samples) == 0:
         raise Exception('The number samples is 0 - has the loader been loaded?')
