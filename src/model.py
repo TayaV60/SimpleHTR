@@ -232,8 +232,12 @@ class Model:
         max_text_len = batch.imgs[0].shape[0] // 4
         sparse = self.to_sparse(batch.gt_texts)
         eval_list = [self.loss]
+        print("self.loss")
+        print(self.loss)
         feed_dict = {self.input_imgs: batch.imgs, self.gt_texts: sparse,
                      self.seq_len: [max_text_len] * num_batch_elements, self.is_train: False}
+        print("feed_dict")
+        print(feed_dict)
         _, loss_val = self.sess.run(eval_list, feed_dict)
         self.batches_trained += 1
         return loss_val
