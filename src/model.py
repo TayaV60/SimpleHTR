@@ -243,7 +243,7 @@ class Model:
                      self.seq_len: [max_text_len] * num_batch_elements, self.is_train: False}
         print("feed_dict")
         print(feed_dict)
-        _, loss_vals = self.sess.run(eval_list, feed_dict)
+        loss_vals = self.sess.run(eval_list, feed_dict)
         print("loss_vals")
         print(loss_vals)
         self.batches_validated += 1
