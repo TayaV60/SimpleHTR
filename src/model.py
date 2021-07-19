@@ -226,6 +226,19 @@ class Model:
         self.batches_trained += 1
         return loss_val
 
+    def validate_batch(self, batch: Batch) -> float:
+        """Feed a batch into the NN to validate it."""
+        num_batch_elements = len(batch.imgs)
+        max_text_len = batch.imgs[0].shape[0] // 4
+        sparse = self.to_sparse(batch.gt_texts)
+        eval_list = [self.loss]
+        feed_dict = {self.input_imgs: batch.imgs, self.gt_texts: sparse,
+                     self.seq_len: [max_text_len] * num_batch_elements, self.is_train: False}
+        _, loss_val = self.sess.run(eval_list, feed_dict)
+        self.batches_trained += 1
+        return loss_val
+
+
     @staticmethod
     def dump_nn_output(rnn_output: np.ndarray) -> None:
         """Dump the output of the NN to CSV file(s)."""

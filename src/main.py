@@ -56,10 +56,10 @@ def train(model: Model,
     no_improvement_since = 0  # number of epochs no improvement of character error rate occurred
     # keep arrays of loss and epochs (for analysis)
     epochs = []
-    average_losses = []
+    training_average_losses = []
     # stop training after this number of epochs without improvement
     while True:
-        losses = [] # the losses for each epoch
+        training_losses = [] # the losses for each epoch
         epoch += 1
         print('Epoch:', epoch)
 
@@ -70,16 +70,16 @@ def train(model: Model,
             iter_info = loader.get_iterator_info()
             batch = loader.get_next()
             batch = preprocessor.process_batch(batch)
-            loss = model.train_batch(batch)
-            losses.append(loss)
-            print(f'Epoch: {epoch} Batch: {iter_info[0]}/{iter_info[1]} Loss: {loss}')
+            training_loss = model.train_batch(batch)
+            training_losses.append(training_loss)
+            print(f'Epoch: {epoch} Batch: {iter_info[0]}/{iter_info[1]} Training loss: {training_loss}')
         
-        average_loss = sum(losses) / len(losses)
-        average_losses.append(average_loss)
+        training_average_loss = sum(training_losses) / len(training_losses)
+        training_average_losses.append(training_average_loss)
         epochs.append(epoch)
 
         # validate
-        char_error_rate, word_error_rate = validate(model, loader, line_mode)
+        char_error_rate, word_error_rate, validation_average_losses= validate(model, loader, line_mode)
 
         # write summary
         summary_char_error_rates.append(char_error_rate)
@@ -88,7 +88,7 @@ def train(model: Model,
         # this currently overwrites for each epoch, which is wasteful but might allow us to
         # track progress if the program fails to complete
         # TODO under the while loop maybe
-        write_lossvsepoch(epochs, average_losses)
+        write_lossvsepoch(epochs, training_average_losses)
 
         # if best validation accuracy so far, save model parameters
         if char_error_rate < best_char_error_rate:
@@ -111,6 +111,8 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float
     """Trains or Validates NN - requires the loader to have loaded its set before calling."""
     if len(loader.samples) == 0:
         raise Exception('The number samples is 0 - has the loader been loaded?')
+    validation_average_losses = []
+    validation_losses = [] # the losses for each epoch
     preprocessor = Preprocessor(get_img_size(line_mode), line_mode=line_mode)
     num_char_err = 0
     num_char_total = 0
@@ -121,7 +123,12 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float
         print(f'Batch: {iter_info[0]} / {iter_info[1]}')
         batch = loader.get_next()
         batch = preprocessor.process_batch(batch)
+        validation_loss = model.validate_batch(batch)
+        validation_losses.append(validation_loss)
         recognized, _ = model.infer_batch(batch)
+    
+        validation_average_loss = sum(validation_losses) / len(validation_losses)
+        validation_average_losses.append(validation_average_loss)
 
         print('Ground truth -> Recognized')
         for i in range(len(recognized)):
@@ -136,8 +143,8 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float
     # print validation result
     char_error_rate = num_char_err / num_char_total
     word_error_rate = num_word_err / num_word_total # we will discuss this when lil G is asleep
-    print(f'Character error rate: {char_error_rate * 100.0}%. Word error rate: {word_error_rate * 100.0}%.')
-    return char_error_rate, word_error_rate
+    print(f'Character error rate: {char_error_rate * 100.0}%. Word error rate: {word_error_rate * 100.0}%. Validation loss: {validation_average_losses}')
+    return char_error_rate, word_error_rate, validation_average_losses 
 
 
 def validate(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float, float]:
