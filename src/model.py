@@ -232,24 +232,12 @@ class Model:
         """Feed a batch into the NN to validate it."""
         num_batch_elements = len(batch.imgs)
         max_text_len = batch.imgs[0].shape[0] // 4
-        print("num_batch_elements")
-        print(num_batch_elements)
-        print("max_text_len")
-        print(max_text_len)
         sparse = self.to_sparse(batch.gt_texts)
         eval_list = [self.loss]
-        print("self.loss")
-        print(self.loss)
         feed_dict = {self.input_imgs: batch.imgs, self.gt_texts: sparse,
                      self.seq_len: [max_text_len] * num_batch_elements, self.is_train: False}
-        print("feed_dict")
-        print(feed_dict)
         loss_vals = self.sess.run(eval_list, feed_dict)
-        print("loss_vals")
-        print(loss_vals)
         self.batches_validated += 1
-        print("batches_validated")
-        print(self.batches_validated)
         return loss_vals
 
 
