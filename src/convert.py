@@ -114,7 +114,8 @@ def convert_image(input_file, destination_folder, output_file, debug):
 
   ext = ConverstionFilePaths.output_extenstion
 
-  if (debug):
+  if debug:
+    print(output_file)
     save_hist(img, f"{output_file} Input", destination_folder, f"{output_file}-1-input.hist.png")
     save_hist(gam, f"{output_file} Gamma", destination_folder, f"{output_file}-2-gam.hist.png")
     save_hist(mask, f"{output_file} Mask", destination_folder, f"{output_file}-3-mask.hist.png")
@@ -153,7 +154,7 @@ def main():
     parser.add_argument('--original_folder', help='Folder to convert.', type=Path, default='/Users/taisiyavelarde/Desktop/DatasetRus/Words/20200923_Dataset_Words_Public')
     parser.add_argument('--destination_folder', help='Folder to store converted files.', type=Path, default='/Users/taisiyavelarde/Documents/tmp')
     parser.add_argument('--words_only', help='Do not regenerate images.', action='store_true')
-    parser.add_argument('--regenerate_file_list', help='Regenerate words and json file list.', action='store_false')
+    parser.add_argument('--read_existing_file_list', help='Use an existing json file list to convert images.', action='store_true')
     parser.add_argument('--limit', help='Limit the number of images processed.', type=int, default=sys.maxsize)
     parser.add_argument('--debug', help='Generate debug histograms.', action='store_true')
 
@@ -174,14 +175,14 @@ def main():
     pathlib.Path(output_annotation_files_folder).mkdir(parents=True, exist_ok=True)
     pathlib.Path(output_image_files_folder).mkdir(parents=True, exist_ok=True)
 
-    if (args.regenerate_file_list):
+    if (args.read_existing_file_list):
+      print("Reading data list")
+      image_data_list = read_json_file_list(args.destination_folder)
+    else:
       print("Regenerating data list")
       image_data_list = iterate_json_files(input_annotation_files_folder)
       save_words_txt(image_data_list, output_annotation_files_folder)
       save_json_file_list(image_data_list, args.destination_folder)
-    else:
-      print("Reading data list")
-      image_data_list = read_json_file_list(args.destination_folder)
 
     if args.words_only != True:
       print(f"Converting images: Limit? {args.limit} Debug? {args.debug}")
