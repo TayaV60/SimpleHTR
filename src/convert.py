@@ -122,7 +122,7 @@ def convert_image(input_file, destination_folder, output_file, debug):
     save_hist(masked, f"{output_file} Masked", destination_folder, f"{output_file}-4-masked.hist.png")
     save_hist(uninverted, f"{output_file} Uninverted", destination_folder, f"{output_file}-5-uninverted.hist.png")
     save_hist(blurred, f"{output_file} Blurred", destination_folder, f"{output_file}-6-blurred.hist.png")
-    cv2.imwrite(f"{destination_folder}/{output_file}-1-gam.{ext}", img)
+    cv2.imwrite(f"{destination_folder}/{output_file}-1-input.{ext}", img)
     cv2.imwrite(f"{destination_folder}/{output_file}-2-gam.{ext}", gam)
     cv2.imwrite(f"{destination_folder}/{output_file}-3-mask.{ext}", mask)
     cv2.imwrite(f"{destination_folder}/{output_file}-4-masked.{ext}", masked)
