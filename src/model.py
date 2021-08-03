@@ -25,7 +25,8 @@ class Model:
                  char_list: List[str],
                  decoder_type: str = DecoderType.BestPath,
                  must_restore: bool = False,
-                 dump: bool = False) -> None:
+                 dump: bool = False,
+                 learning_rate = 0.002) -> None:
         """Init model: add CNN, RNN and CTC and initialize TF."""
         self.dump = dump
         self.char_list = char_list
@@ -49,7 +50,7 @@ class Model:
         self.batches_validated = 0
         self.update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.update_ops):
-            self.optimizer = tf.compat.v1.train.AdamOptimizer().minimize(self.loss)
+            self.optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate).minimize(self.loss)
 
         # initialize TF
         self.sess, self.saver = self.setup_tf()
