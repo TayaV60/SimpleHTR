@@ -157,6 +157,7 @@ def main():
     parser.add_argument('--read_existing_file_list', help='Use an existing json file list to convert images.', action='store_true')
     parser.add_argument('--limit', help='Limit the number of images processed.', type=int, default=sys.maxsize)
     parser.add_argument('--debug', help='Generate debug histograms.', action='store_true')
+    parser.add_argument('--file_ids', help='Specify a set of file ids (comma separated) to process.', type=str)
 
     args = parser.parse_args()
 
@@ -183,6 +184,14 @@ def main():
       image_data_list = iterate_json_files(input_annotation_files_folder)
       save_words_txt(image_data_list, output_annotation_files_folder)
       save_json_file_list(image_data_list, args.destination_folder)
+
+    if (args.file_ids):
+      print("Filtering")
+      file_ids = args.file_ids.split(",")
+      print(file_ids)
+      image_data_list = [img for img in image_data_list if img["id"] in file_ids]
+      print("Filtered")
+      print(image_data_list)
 
     if args.words_only != True:
       print(f"Converting images: Limit? {args.limit} Debug? {args.debug}")
