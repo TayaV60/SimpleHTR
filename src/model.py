@@ -51,8 +51,8 @@ class Model:
         self.batches_trained = 0
         self.batches_validated = 0
         self.update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
+        learning_rate = tf.compat.v1.train.exponential_decay(starter_learning_rate, global_step, 500, 0.95, staircase=True)
         with tf.control_dependencies(self.update_ops):
-            learning_rate = tf.compat.v1.train.exponential_decay(starter_learning_rate, global_step, 500, 0.95, staircase=True)
             self.optimizer = tf.compat.v1.train.GradientDescentOptimizer(learning_rate).minimize(self.loss, global_step=global_step)
 
         # initialize TF
