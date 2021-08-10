@@ -26,7 +26,9 @@ class Model:
                  decoder_type: str = DecoderType.BestPath,
                  must_restore: bool = False,
                  dump: bool = False,
-                 learning_rate = 0.001) -> None:
+                 global_step = tf.Variable(0, trainable=False),
+                 starter_learning_rate = 0.1) -> None:
+
         """Init model: add CNN, RNN and CTC and initialize TF."""
         self.dump = dump
         self.char_list = char_list
@@ -50,7 +52,8 @@ class Model:
         self.batches_validated = 0
         self.update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.update_ops):
-            self.optimizer = tf.compat.v1.train.GradientDescentOptimizer(learning_rate).minimize(self.loss)
+            learning_rate = tf.compat.v1.train.exponential_decay(starter_learning_rate, global_step, 500, 0.95, staircase=True)
+            self.optimizer = tf.compat.v1.train.GradientDescentOptimizer(learning_rate).minimize(self.loss, global_step=global_step)
 
         # initialize TF
         self.sess, self.saver = self.setup_tf()
