@@ -26,7 +26,7 @@ class Model:
                  decoder_type: str = DecoderType.BestPath,
                  must_restore: bool = False,
                  dump: bool = False,
-                 learning_rate = 0.001) -> None:
+                 learning_rate = 0.01) -> None:
         """Init model: add CNN, RNN and CTC and initialize TF."""
         self.dump = dump
         self.char_list = char_list
