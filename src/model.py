@@ -60,7 +60,7 @@ class Model:
 
         # list of parameters for the layers
         kernel_vals = [5, 5, 3, 3]
-        feature_vals = [1, 32, 64, 128, 128]
+        feature_vals = [1, 32, 64, 128, 256]
         stride_vals = pool_vals = [(2, 2), (2, 2), (1, 2), (1, 2)]
         num_layers = len(stride_vals)
 
@@ -83,7 +83,7 @@ class Model:
         rnn_in3d = tf.squeeze(self.cnn_out_4d, axis=[2])
 
         # basic cells which is used to build RNN
-        num_hidden = 128
+        num_hidden = 256
         cells = [tf.compat.v1.nn.rnn_cell.LSTMCell(num_units=num_hidden, state_is_tuple=True) for _ in
                  range(2)]  # 2 layers
 
