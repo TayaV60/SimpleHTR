@@ -120,7 +120,7 @@ class Model:
         self.loss = tf.reduce_mean(
             input_tensor=tf.compat.v1.nn.ctc_loss(labels=self.gt_texts, inputs=self.ctc_in_3d_tbc,
                                                   sequence_length=self.seq_len,
-                                                  ctc_merge_repeated=True) + 0.01 * regularizer)
+                                                  ctc_merge_repeated=True) + 0.001 * regularizer)
 
         # calc loss for each element to compute label probability
         self.saved_ctc_input = tf.compat.v1.placeholder(tf.float32,
