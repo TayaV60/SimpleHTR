@@ -67,13 +67,13 @@ class Model:
         # create layers
         pool = cnn_in4d  # input to first CNN layer
         for i in range(num_layers):
-            self.kernel = tf.Variable(
+            kernel = tf.Variable(
                 tf.random.truncated_normal([kernel_vals[i], kernel_vals[i], feature_vals[i], feature_vals[i + 1]],
                                            stddev=0.1))
-            conv = tf.nn.conv2d(input=pool, filters=self.kernel, padding='SAME', strides=(1, 1, 1, 1))
+            conv = tf.nn.conv2d(input=pool, filters=kernel, padding='SAME', strides=(1, 1, 1, 1))
             conv_norm = tf.compat.v1.layers.batch_normalization(conv, training=self.is_train)
             relu = tf.nn.relu(conv_norm)
-            dropout = tf.compat.v1.layers.dropout(relu, rate=0.3, noise_shape=None, seed=None, training=False, name=None)
+            dropout = tf.compat.v1.layers.dropout(relu, rate=0.4, noise_shape=None, seed=None, training=False, name=None)
             pool = tf.nn.max_pool2d(input=dropout, ksize=(1, pool_vals[i][0], pool_vals[i][1], 1),
                                     strides=(1, stride_vals[i][0], stride_vals[i][1], 1), padding='VALID')
 
@@ -113,15 +113,12 @@ class Model:
                                         tf.compat.v1.placeholder(tf.int32, [None]),
                                         tf.compat.v1.placeholder(tf.int64, [2]))
 
-        regularizer = tf.nn.l2_loss(self.kernel)
-
-
         # calc loss for batch
         self.seq_len = tf.compat.v1.placeholder(tf.int32, [None])
         self.loss = tf.reduce_mean(
             input_tensor=tf.compat.v1.nn.ctc_loss(labels=self.gt_texts, inputs=self.ctc_in_3d_tbc,
                                                   sequence_length=self.seq_len,
-                                                  ctc_merge_repeated=True) + 0.01 * regularizer)
+                                                  ctc_merge_repeated=True))
 
         # calc loss for each element to compute label probability
         self.saved_ctc_input = tf.compat.v1.placeholder(tf.float32,
