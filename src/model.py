@@ -99,7 +99,7 @@ class Model:
         concat = tf.expand_dims(tf.concat([fw, bw], 2), 2)
 
         # project output to chars (including blank): BxTx1x2H -> BxTx1xC -> BxTxC
-        kernel = tf.Variable(tf.random.truncated_normal([1, 1, num_hidden * 2, len(self.char_list) + 1], stddev=0.1))
+        kernel = tf.Variable(tf.random.truncated_normal([1, 1, num_hidden * 2, len(self.char_list)], stddev=0.1))
         self.rnn_out_3d = tf.squeeze(tf.nn.atrous_conv2d(value=concat, filters=kernel, rate=1, padding='SAME'),
                                      axis=[2])
 
@@ -121,7 +121,7 @@ class Model:
 
         # calc loss for each element to compute label probability
         self.saved_ctc_input = tf.compat.v1.placeholder(tf.float32,
-                                                        shape=[None, None, len(self.char_list) + 1])
+                                                        shape=[None, None, len(self.char_list)])
         self.loss_per_element = tf.compat.v1.nn.ctc_loss(labels=self.gt_texts, inputs=self.saved_ctc_input,
                                                          sequence_length=self.seq_len, ctc_merge_repeated=True)
 
