@@ -72,9 +72,9 @@ class Model:
                                            stddev=0.1))
             conv = tf.nn.conv2d(input=pool, filters=kernel, padding='SAME', strides=(1, 1, 1, 1))
             conv_norm = tf.compat.v1.layers.batch_normalization(conv, training=self.is_train)
-            relu = tf.nn.relu(conv_norm)
-            dropout = tf.compat.v1.layers.dropout(relu, rate=0.7, noise_shape=None, seed=None, training=False, name=None)
-            pool = tf.nn.max_pool2d(input=dropout, ksize=(1, pool_vals[i][0], pool_vals[i][1], 1),
+            dropout = tf.compat.v1.layers.dropout(conv_norm, rate=0.3, noise_shape=None, seed=None, training=False, name=None)
+            relu = tf.nn.relu(dropout)
+            pool = tf.nn.max_pool2d(input=relu, ksize=(1, pool_vals[i][0], pool_vals[i][1], 1),
                                     strides=(1, stride_vals[i][0], stride_vals[i][1], 1), padding='VALID')
 
         self.cnn_out_4d = pool
