@@ -67,10 +67,10 @@ class Model:
         # create layers
         pool = cnn_in4d  # input to first CNN layer
         for i in range(num_layers):
-            kernel = tf.Variable(
+            self.kernel = tf.Variable(
                 tf.random.truncated_normal([kernel_vals[i], kernel_vals[i], feature_vals[i], feature_vals[i + 1]],
                                            stddev=0.1))
-            conv = tf.nn.conv2d(input=pool, filters=kernel, padding='SAME', strides=(1, 1, 1, 1))
+            conv = tf.nn.conv2d(input=pool, filters=self.kernel, padding='SAME', strides=(1, 1, 1, 1))
             conv_norm = tf.compat.v1.layers.batch_normalization(conv, training=self.is_train)
             dropout = tf.compat.v1.layers.dropout(conv_norm, rate=0.3, noise_shape=None, seed=None, training=False, name=None)
             relu = tf.nn.relu(dropout)
@@ -113,12 +113,15 @@ class Model:
                                         tf.compat.v1.placeholder(tf.int32, [None]),
                                         tf.compat.v1.placeholder(tf.int64, [2]))
 
+        regularizer = tf.nn.l2_loss(self.kernel) 
+
+
         # calc loss for batch
         self.seq_len = tf.compat.v1.placeholder(tf.int32, [None])
         self.loss = tf.reduce_mean(
             input_tensor=tf.compat.v1.nn.ctc_loss(labels=self.gt_texts, inputs=self.ctc_in_3d_tbc,
                                                   sequence_length=self.seq_len,
-                                                  ctc_merge_repeated=True))
+                                                  ctc_merge_repeated=True) + 0.01 * regularizer)
 
         # calc loss for each element to compute label probability
         self.saved_ctc_input = tf.compat.v1.placeholder(tf.float32,
