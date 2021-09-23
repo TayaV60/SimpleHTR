@@ -66,7 +66,7 @@ class DataLoaderIAM:
             # put sample into list
             self.samples.append(Sample(gt_text, file_name))
 
-        # split into training and validation and test set: 95% - 5% - 5%
+        # split into training and validation and test set: 70% - 15% - 15%
         split_idx_1 = int(data_split_1 * len(self.samples))
         split_idx_2 = int(data_split_2 * len(self.samples))
         self.train_samples = self.samples[:split_idx_1]

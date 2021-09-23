@@ -146,7 +146,7 @@ def _verify(model: Model, loader: DataLoaderIAM, line_mode: bool) -> Tuple[float
     validation_average_loss = sum(validation_losses) / len(validation_losses)
     # print validation result
     char_error_rate = num_char_err / num_char_total
-    word_error_rate = num_word_err / num_word_total # we will discuss this when lil G is asleep
+    word_error_rate = num_word_err / num_word_total
     print(f'Character error rate: {char_error_rate * 100.0}%. Word error rate: {word_error_rate * 100.0}%. Validation loss: {validation_average_loss}')
     return char_error_rate, word_error_rate, validation_average_loss 
 

@@ -1,5 +1,6 @@
-# Handwritten Text Recognition with TensorFlow
+# Handwritten Text Recognition with TensorFlow - modified to recognise a Russian dataset (HKR)
 
+* **Update 2021/9: recognize Russian text converted to IAM-like format**
 * **Update 2021/2: recognize text on line level (multiple words)**
 * **Update 2021/1: more robust model, faster dataloader, word beam search decoder also available for Windows**
 * **Update 2020: code is compatible with TF2**
@@ -11,6 +12,13 @@ The model takes **images of single words or text lines (multiple words) as input
 
 ![htr](./doc/htr.png)
 
+## Modifications for Russian
+
+* calculation of the validation loss added
+* changed the system metrics (word accuracy to word error rate)
+* the dataset is split into 3 subsets (training, validation and test)
+* converstion from HKR to IAM-like formats (see [](src/convert.py))
+* changed the value for early stopping
 
 ## Run demo
 
@@ -125,6 +133,22 @@ What remains is the bare minimum to recognize text with an acceptable accuracy.
 It consists of 5 CNN layers, 2 RNN (LSTM) layers and the CTC loss and decoding layer.
 For more details see this [Medium article](https://towardsdatascience.com/2326a3487cd5).
 
+## Converting the Russian dataset and training the model
+
+The HKR dataset can [be found on Github](https://github.com/abdoelsayed2016/HKR_Dataset). The added convert.py has the following arguments:
+
+* `--original_folder` Folder to convert.
+* `--destination_folder` Folder to store converted files.
+* `--words_only` Do not regenerate images.
+* `--read_existing_file_list` Use an existing json file list to convert images.
+* `--limit` Limit the number of images processed.
+* `--debug` Generate debug histograms.
+
+The only two arguments you need to specify are `--original_folder` and `--destination_folder`. Once the dataset has been converted, the model can be trained by running:
+
+```
+python main.py --mode train --data_dir /path/to/rus-iam-format
+```
 
 ## References
 * [Build a Handwritten Text Recognition System using TensorFlow](https://towardsdatascience.com/2326a3487cd5)
