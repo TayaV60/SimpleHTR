@@ -46,6 +46,7 @@ class Model:
 
         # setup optimizer to train NN
         self.batches_trained = 0
+        self.batches_validated = 0
         self.update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.update_ops):
             self.optimizer = tf.compat.v1.train.AdamOptimizer().minimize(self.loss)
@@ -225,6 +226,19 @@ class Model:
         _, loss_val = self.sess.run(eval_list, feed_dict)
         self.batches_trained += 1
         return loss_val
+
+    def validate_batch(self, batch: Batch) -> float:
+        """Feed a batch into the NN to validate it."""
+        num_batch_elements = len(batch.imgs)
+        max_text_len = batch.imgs[0].shape[0] // 4
+        sparse = self.to_sparse(batch.gt_texts)
+        eval_list = [self.loss]
+        feed_dict = {self.input_imgs: batch.imgs, self.gt_texts: sparse,
+                     self.seq_len: [max_text_len] * num_batch_elements, self.is_train: False}
+        loss_vals = self.sess.run(eval_list, feed_dict)
+        self.batches_validated += 1
+        return loss_vals
+
 
     @staticmethod
     def dump_nn_output(rnn_output: np.ndarray) -> None:
